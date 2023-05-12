@@ -18,6 +18,6 @@ class Board extends Model
     }
 
     public function User(){
-        return $this->hasMany(User::class, 'id_creator', 'id');
+        return $this->hasMany(User::class, 'id', 'id_creator');
     }
 }

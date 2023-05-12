@@ -17,8 +17,9 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('description')->nullable();
-            $table->date('deadline');
+            $table->date('deadline')->nullable();
             $table->boolean('loop_flag')->default('0');
+            $table->integer('loop_iteration')->nullable();
             $table->boolean('complete_flag')->default('0');
             $table->date('close_date')->nullable();
             $table->foreignId('id_autor')->constrained('users')->onUpdate('cascade')->onDelete('cascade');

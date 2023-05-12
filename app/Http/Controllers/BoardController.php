@@ -10,10 +10,19 @@ class BoardController extends Controller
     public function createBoard(Request $req){
         try {
             $board = new \App\Models\Board;
-            $board->id_creator = 2; #Auth::user()->id
+            $board->id_creator = $req->id_user; #Auth::user()->id
             $board->name = $req->name;
-            $board->publish_flag = $req->flag;
+            if($req->flag){$board->publish_flag = $req->flag;}
             $board->save();
+
+            $board = \App\Models\Board::find($board->id);
+            $board->id_creator = $board->User()->get()[0]->tg_name;
+
+            $middle = new \App\Models\Access;
+            $middle->id_user = $req->id_user; #Auth::user()->id
+            $middle->id_board = $board->id;
+            $middle->save();
+
             return response()->json($board, 201);
         } catch (Throwable $th) {
             $data = [];
@@ -25,7 +34,15 @@ class BoardController extends Controller
 
     public function getUserBoards($id){
         if(\App\Models\User::find($id)){
-            $boards = \App\Models\Board::where('id_creator', $id)->get();
+            $accesses = \App\Models\Access::where('id_user', $id)->get();
+            $boards = [];
+            $i = 0;
+            foreach($accesses as $ac){
+                $item = \App\Models\Board::find($ac->id_board);
+                $boards[$i] = $item;
+                $boards[$i]['id_creator'] = $item->User()->get()[0]->tg_name;
+                $i++;
+            }
             return response()->json($boards, 200);
         }
         else{

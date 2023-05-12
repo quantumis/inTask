@@ -9,24 +9,29 @@ class TaskController extends Controller
 {
     public function createTask(Request $req){
         try {
-            $board = \App\Models\Board::where('name', $req->board)->get();
             $task = new \App\Models\Task;
             $task->name = $req->name;
             if($req->description){ $task->description = $req->description; }
-            $task->deadline = $req->deadline;
-            $task->loop_flag = $req->loop_flag;
-            $task->complete_flag = 0;
-            $task->id_autor = 2; #Auth::user()->id
+            if($req->deadline){ $task->deadline = $req->deadline; }
+            if($req->loop_flag){ $task->loop_flag = $req->loop_flag; }
+            if($req->loop_iteration){ $task->loop_iteration = $req->loop_iteration; }
+            $task->id_autor = $req->id_autor; #Auth::user()->id
             $task->save();
 
             $middle = new \App\Models\Task_in_Board;
             $middle->id_task = $task->id;
-            $middle->id_board = $board[0]->id;
+            $middle->id_board = $req->id_board;
+            $middle->save();
+
+            $middle = new \App\Models\Assigned;
+            $middle->id_task = $task->id;
+            $middle->id_user = $req->id_autor; #Auth::user()->id
             $middle->save();
 
             $data = [];
-            $data[] = $task;
-            // $data[] = $task->Board()->name; 
+            $data['task'] = \App\Models\Task::find($task->id);
+            $data['task']['id_autor'] = $task->User()->get()[0]->tg_name;
+            $data['board'] = ["board" => $task->Board()->get()[0]->name]; 
 
             return response()->json($data, 201);
         } catch (Throwable $th) {
@@ -39,18 +44,41 @@ class TaskController extends Controller
 
     public function getUserBoardTask($board, $id){
         try {
-            $tasks =[];
-            $cur_board = \App\Models\Board::find($board);
-            $task_in_board = \App\Models\Task_in_Board::where('id_board', $cur_board->id)->get();
-            $user_tasks = \App\Models\Task::where('id_autor', $id)->get();
-            foreach($task_in_board as $tib){
-                foreach($user_tasks as $task){
-                    if($tib->id_task == $task->id){
-                        $tasks[] = $task;
+            $tasks = [];
+            $accesses = \App\Models\Access::where('id_board', $board)->where('id_user', $id)->get();
+            if($accesses->count() > 0){
+                $tasks_in = \App\Models\Task_in_Board::where('id_board', $board)->get();
+                $assign = [];
+                foreach($tasks_in as $t){
+                    $assign[] = \App\Models\Assigned::where('id_user', $id)->where('id_task', $t->id_task)->get();
+                }
+                $subtasks = [];
+                $i = 0;
+                foreach($assign as $assig){
+                    foreach($assig as $a){
+                        $item = \App\Models\Task::find($a->id_task);
+                        $sub = \App\Models\Sub_in_Task::where('id_task', $a->id_task)->get();
+                        if($sub->count() > 0){
+                            $j = 0;
+                            foreach ($sub as $s){
+                                $subtasks[$j] = $s->SubTask()->get();
+                                $j++;
+                            }
+                        }
+                        $tasks[$i] = $item;
+                        $tasks[$i]["id_autor"] = $item->User()->get()[0]->tg_name;
+                        $i++;
                     }
                 }
+                $data = [];
+                $data['tasks'] = $tasks;
+                $data['subtasks'] = $subtasks;
+                return response()->json($data, 200);
+            }else{
+                $data = ['response' => 'null'];
+                return response()->json($data, 200);
             }
-            return response()->json($tasks, 200);
+            
         } catch (Throwable $th) {
             $data = [];
             $data[] = ['response' => 'Something went wrong'];
@@ -59,16 +87,35 @@ class TaskController extends Controller
         }
     }
 
-    public function getAllTask(){
+    public function getAllTask($id){
         try {
-            $tasks = \App\Models\Task::where('id_autor', 2)->get(); #Auth::user()->id
+            $assigned = \App\Models\Assigned::where('id_user', $id)->get(); #Auth::user()->id
+            $tasks = [];
+            $subtasks = [];
+            $i = 0;
+            foreach($assigned as $as){
+                $item = \App\Models\Task::find($as->id_task); #Potential need add where('complete_flag', 0)
+                $sub = \App\Models\Sub_in_Task::where('id_task', $as->id_task)->get();
+                if($sub->count() > 0){
+                    $j = 0;
+                    foreach ($sub as $s){
+                        $subtasks[$j] = $s->SubTask()->get();
+                        $j++;
+                    }
+                }
+                $tasks[$i] = $item;
+                $tasks[$i]["id_autor"] = $item->User()->get()[0]->tg_name;
+                $i++;
+            }
             $buf = [];
             foreach($tasks as $task){
-                $buf[] = [$task->name => $task->id]; #Сюда надо написать название доски, но для этого починить связи. Пример ---> "Название задачи" => "Название доски"
+                $buf[$task->Board()->get()[0]->name][] = $task->name;
+                
             }
             $data = [];
-            $data[] = $tasks;
-            $data[] = $buf;
+            $data['tasks'] = $tasks;
+            $data['boards'] = $buf;
+            $data['subtasks'] = $subtasks;
             return response()->json($data, 200);
         } catch (Throwable $th) {
             $data = [];
@@ -118,6 +165,40 @@ class TaskController extends Controller
         }else{
             $data = ['response' => 'No Entries'];
             return response()->json($data, 404);
+        }
+    }
+
+    public function getTodayTask($id){
+        try {
+            $assigned = \App\Models\Assigned::where('id_user', $id)->get(); #Auth::user()->id
+            $tasks = [];
+            $i = 0;
+            $today = date("Y-m-d");
+            foreach($assigned as $as){
+                $item = \App\Models\Task::where('deadline', $today)->where('id', $as->id_task)->get();
+                if($item->count() == 0){
+
+                }else{
+                    foreach($item as $it){
+                        $tasks[$i] = $it;
+                        $tasks[$i]["id_autor"] = $it->User()->get()[0]->tg_name;
+                        $i++;
+                    }
+                }
+            }
+            $buf = [];
+            foreach($tasks as $task){
+                $buf[$task->Board()->get()[0]->name][] = $task->name;
+            }
+            $data = [];
+            $data['tasks'] = $tasks;
+            $data['boards'] = $buf;
+            return response()->json($data, 200);
+        } catch (Throwable $th) {
+            $data = [];
+            $data[] = ['response' => 'Something went wrong'];
+            $data[] = ['error' => $th];
+            return response()->json($data, 400);
         }
     }
 }

@@ -30,10 +30,9 @@ class UserController extends Controller
     public function createUser(Request $req){
         try {
             $user = new \App\Models\User;
-            $user->tg_name = $req->tg_name;
+            if($req->tg_name){ $user->tg_name = $req->tg_name; }
             $user->firstname = $req->firstname;
             $user->lastname = $req->lastname;
-            if($req->patronymic){ $user->patronymic = $req->patronymic; }
             $user->phone = $req->phone;
             $user->region = $req->region;
             $user->birthdate = $req->birthdate;
@@ -41,6 +40,54 @@ class UserController extends Controller
             $user->password = Hash::make($req->password);
             $user->save();
             return response()->json($user, 201);
+        } catch (Throwable $th) {
+            $data = [];
+            $data[] = ['response' => 'Something went wrong'];
+            $data[] = ['error' => $th];
+            return response()->json($data, 400);
+        }
+    }
+
+    public function editMail(Request $req){
+        try {
+            $user = \App\Models\User::find($req->user_id);
+            $user->email = $req->email;
+            $user->save();
+            return response()->json($user, 200);
+        } catch (Throwable $th) {
+            $data = [];
+            $data[] = ['response' => 'Something went wrong'];
+            $data[] = ['error' => $th];
+            return response()->json($data, 400);
+        }
+    }
+
+    public function editPass(Request $req){
+        try {
+            $user = \App\Models\User::find($req->user_id);
+            $user->password = Hash::make($req->password);
+            $user->save();
+            return response()->json($user, 200);
+        } catch (Throwable $th) {
+            $data = [];
+            $data[] = ['response' => 'Something went wrong'];
+            $data[] = ['error' => $th];
+            return response()->json($data, 400);
+        }
+    }
+
+    public function editFirstLastName(Request $req){
+        try {
+            $user = \App\Models\User::find($req->user_id);
+            if($req->lastname){
+                $user->lastname = $req->lastname;
+                $user->save();
+            }
+            if($req->firstname){
+                $user->firstname = $req->firstname;
+                $user->save();
+            }
+            return response()->json($user, 200);
         } catch (Throwable $th) {
             $data = [];
             $data[] = ['response' => 'Something went wrong'];

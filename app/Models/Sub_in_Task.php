@@ -10,7 +10,7 @@ class Sub_in_Task extends Model
     use HasFactory;
 
     public function SubTask(){
-        return $this->hasMany(SubTask::class, 'id_subtask', 'id');
+        return $this->hasMany(SubTask::class, 'id', 'id_subtask');
     }
 
     public function Task(){
